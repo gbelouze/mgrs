@@ -14,7 +14,7 @@ class MGRS:
         return f"MGRS:{self.mgrs}"
 
     def __repr__(self):
-        return str(self)
+        return f"MGRS(mgrs={self.mgrs})"
 
     def __hash__(self):
         return hash(self.mgrs)
