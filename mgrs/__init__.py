@@ -1,85 +1,94 @@
 import ctypes
+from typing import Self
 
 from . import core
 
-__version__ = "1.4.5"
+__version__ = "1.5.0"
 
 
 class MGRS:
-    def __init__(self):
-        pass
+    def __init__(self, mgrs: str):
+        self.mgrs = mgrs
 
-    def ddtodms(self, dd):
-        """Take in dd string and convert to dms"""
-        negative = dd < 0
-        dd = abs(dd)
-        minutes, seconds = divmod(dd * 3600, 60)
-        degrees, minutes = divmod(minutes, 60)
-        if negative:
-            if degrees > 0:
-                degrees = -degrees
-            elif minutes > 0:
-                minutes = -minutes
-            else:
-                seconds = -seconds
-        return (degrees, minutes, seconds)
+    def __str__(self):
+        return f"MGRS:{self.mgrs}"
 
-    def dmstodd(self, dms):
-        """convert dms to dd"""
-        letters = "WENS"
-        is_annotated = False
+    def __repr__(self):
+        return str(self)
 
-        try:
-            float(dms)
-        except ValueError:
-            for letter in letters:
-                if letter in dms.upper():
-                    is_annotated = True
-                    break
-            if not is_annotated:
-                msg = "unable to parse '%s' to decimal degrees" % dms
-                raise core.MGRSError(msg)
-        is_negative = False
-        if is_annotated:
-            dms_upper = dms.upper()
-            if "W" in dms_upper or "S" in dms_upper:
-                is_negative = True
-        else:
-            if dms < 0:
-                is_negative = True
+    @property
+    def precision(self) -> int:
+        return (len(self.mgrs) - 5) // 2
 
-        if is_annotated:
-            bletters = letters.encode(encoding="utf-8")
-            bdms = dms.encode(encoding="utf-8")
-            dms = bdms.translate(None, bletters).decode("ascii")
+    @classmethod
+    def from_utm(
+        cls,
+        zone: int,
+        hemisphere: str,
+        easting: float,
+        northing: float,
+        precision: int = 5,
+    ) -> Self:
+        """Computes the MGRS coordinate of a point given in UTM coordinates.
 
-            # bletters = bytes(letters, encoding='utf-8')
-            # bdms = bytes(dms, encoding='utf-8')
-            # dms = bdms.translate(None, bletters).decode('ascii')
+        Parameters
+        ----------
+        zone : int
+            The UTM zone number.
+        hemisphere : str
+            The UTM hemisphere. Either 'N' for north or 'S' for south.
+        easting : float
+            Easting coordinate.
+        northing : float
+            Northing coordinate.
+        precision : int
+            The MGRS precision scale, from 0 (least precise) to 5 (most precise). Default is 5.
 
-            # dms = dms.translate(None, letters) # Python 2.x version
+        Returns
+        -------
+        mgrs: MGRS
+        """
+        mgrs = ctypes.create_string_buffer(80)
 
-        pieces = dms.split(".")
-        D = 0.0
-        M = 0.0
-        S = 0.0
-        divisor = 3600.0
-        if len(pieces) == 1:
-            S = dms[-2:]
-            M = dms[-4:-2]
-            D = dms[:-4]
-        else:
-            S = "{0:s}.{1:s}".format(pieces[0][-2:], pieces[1])
-            M = pieces[0][-4:-2]
-            D = pieces[0][:-4]
+        hemisphere_encoded = hemisphere.encode("utf-8")
 
-        DD = float(D) + float(M) / 60.0 + float(S) / divisor
-        if is_negative:
-            DD = DD * -1.0
-        return DD
+        hemisphere_c = ctypes.c_char(hemisphere_encoded)
+        core.rt.Convert_UTM_To_MGRS(
+            zone,
+            hemisphere_c,
+            ctypes.c_double(easting),
+            ctypes.c_double(northing),
+            precision,
+            mgrs,
+        )
 
-    def toMGRS(self, latitude, longitude, inDegrees=True, MGRSPrecision=5):
-        if inDegrees:
+        return cls(mgrs.value.decode("utf-8"))
+
+    @classmethod
+    def from_lat_lon(
+        cls,
+        latitude: float,
+        longitude: float,
+        in_degrees: bool = True,
+        precision: int = 5,
+    ) -> Self:
+        """Convert lat/lon coordinates to the encapsulating MGRS zone.
+
+        Parameters
+        ----------
+        latitude, longitude : float
+            Coordinates in degrees or radian.
+        in_degrees : bool
+            True if coordinates are given in degrees, False if they are in radian. Default is True.
+        precision : int = 5
+            The MGRS precision scale, from 0 (least precise) to 5 (most precise). Default is 5.
+
+        Returns
+        -------
+        mgrs: MGRS
+            The MGRS zone.
+        """
+        if in_degrees:
             lat = core.TO_RADIANS(latitude)
             lon = core.TO_RADIANS(longitude)
         else:
@@ -87,22 +96,32 @@ class MGRS:
             lon = longitude
 
         p = ctypes.create_string_buffer(80)
-        core.rt.Convert_Geodetic_To_MGRS(lat, lon, MGRSPrecision, p)
+        core.rt.Convert_Geodetic_To_MGRS(lat, lon, precision, p)
         c = ctypes.string_at(p)
-        return c.decode("utf-8")
+        return cls(mgrs=c.decode("utf-8"))
 
-    def toLatLon(self, MGRS, inDegrees=True):
+    def to_latlon(self, in_degrees: bool = True) -> tuple[float, float]:
+        """Compute the center of a MGRS in lat/lon coordinate.
+
+        Parameters
+        ----------
+        in_degrees : bool
+            If True, coordinates are given in degrees. If False, they are given in radian. Default is True.
+
+        Returns
+        -------
+        tuple[float, float]
+            Latitude/longitude coordinate.
+        """
         plat = ctypes.pointer(ctypes.c_double())
         plon = ctypes.pointer(ctypes.c_double())
 
-        if type(MGRS) is str:
-            mgrs = MGRS.encode("utf-8")
-        else:
-            mgrs = MGRS
+        mgrs = self.mgrs.encode("utf-8")
+
         c = ctypes.string_at(mgrs)
         core.rt.Convert_MGRS_To_Geodetic(c, plat, plon)
 
-        if inDegrees:
+        if in_degrees:
             lat = core.TO_DEGREES(plat.contents.value)
             lon = core.TO_DEGREES(plon.contents.value)
         else:
@@ -110,13 +129,21 @@ class MGRS:
             lon = plon.contents.value
         return (lat, lon)
 
-    def MGRSToUTM(self, MGRS, encoding="utf-8"):
+    def to_utm(self) -> tuple[int, str, float, float]:
+        """Convert a MGRS tile to UTM coordinates.
 
-        if type(MGRS) is str:
-            mgrs = MGRS.encode(encoding)
-        else:
-            mgrs = MGRS
-
+        Returns
+        -------
+        zone: int
+            The UTM zone number.
+        hemisphere: str
+            The UTM hemisphere. Values are 'N' for north and 'S' for south.
+        easting: float
+            Easting coordinates in the UTM zone.
+        northing: float
+            Northing coordinates in the UTM zone.
+        """
+        mgrs = self.mgrs.encode("utf-8")
         mgrs = ctypes.string_at(mgrs)
         zone = ctypes.pointer(ctypes.c_long())
         hemisphere = ctypes.pointer(ctypes.c_char())
@@ -131,21 +158,3 @@ class MGRS:
             easting.contents.value,
             northing.contents.value,
         )
-
-    def UTMToMGRS(self, zone, hemisphere, easting, northing, MGRSPrecision=5):
-        mgrs = ctypes.create_string_buffer(80)
-
-        if type(hemisphere) is str:
-            hemisphere = hemisphere.encode("utf-8")
-
-        hemisphere = ctypes.c_char(hemisphere)
-        core.rt.Convert_UTM_To_MGRS(
-            zone,
-            hemisphere,
-            ctypes.c_double(easting),
-            ctypes.c_double(northing),
-            MGRSPrecision,
-            mgrs,
-        )
-
-        return mgrs.value.decode("utf-8")
