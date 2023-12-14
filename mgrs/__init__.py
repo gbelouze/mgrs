@@ -23,6 +23,14 @@ class MGRS:
     def precision(self) -> int:
         return (len(self.mgrs) - 5) // 2
 
+    @property
+    def easting_letter(self) -> str:
+        return self.mgrs[3]
+
+    @property
+    def northing_letter(self) -> str:
+        return self.mgrs[4]
+
     @classmethod
     def from_utm(
         cls,
