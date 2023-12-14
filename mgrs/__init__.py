@@ -16,6 +16,9 @@ class MGRS:
     def __repr__(self):
         return str(self)
 
+    def __hash__(self):
+        return hash(self.mgrs)
+
     @property
     def precision(self) -> int:
         return (len(self.mgrs) - 5) // 2
