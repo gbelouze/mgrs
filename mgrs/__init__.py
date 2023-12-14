@@ -19,6 +19,11 @@ class MGRS:
     def __hash__(self):
         return hash(self.mgrs)
 
+    def __eq__(self, other):
+        if not isinstance(other, MGRS):
+            raise TypeError(f"Cannot compare MGRS object with object of type {type(other)}")
+        return hash(self) == hash(other)
+
     @property
     def precision(self) -> int:
         return (len(self.mgrs) - 5) // 2
