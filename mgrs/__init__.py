@@ -8,7 +8,13 @@ __version__ = "1.5.0"
 
 class MGRS:
     def __init__(self, mgrs: str):
-        self.mgrs = mgrs
+        self._mgrs = mgrs
+        _ = self.to_utm()  # dummy call to raise error if `mgrs` is ill-formed.
+
+    @property
+    def mgrs(self) -> str:
+        "The string id of the MGRS."
+        return self._mgrs
 
     def __str__(self):
         return f"MGRS:{self.mgrs}"
@@ -20,21 +26,80 @@ class MGRS:
         return hash(self.mgrs)
 
     def __eq__(self, other):
-        if not isinstance(other, MGRS):
-            raise TypeError(f"Cannot compare MGRS object with object of type {type(other)}")
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Cannot compare MGRS object of type {type(self)} with object of type {type(other)}"
+            )
         return hash(self) == hash(other)
+
+    def __lt__(self, other):
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Cannot compare MGRS object of type {type(self)} with object of type {type(other)}"
+            )
+        return self.mgrs < other.mgrs
+
+    def __le__(self, other):
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Cannot compare MGRS object of type {type(self)} with object of type {type(other)}"
+            )
+        return self.mgrs <= other.mgrs
+
+    def __gt__(self, other):
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Cannot compare MGRS object of type {type(self)} with object of type {type(other)}"
+            )
+        return self.mgrs > other.mgrs
+
+    def __ge__(self, other):
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Cannot compare MGRS object of type {type(self)} with object of type {type(other)}"
+            )
+        return self.mgrs >= other.mgrs
 
     @property
     def precision(self) -> int:
         return (len(self.mgrs) - 5) // 2
 
     @property
+    def utm_zone(self) -> int:
+        """The UTM zone number of the MGRS tile."""
+        return int(self.mgrs[:2])
+
+    @property
+    def utm_letter(self) -> str:
+        """The UTM zone letter of the MGRS tile."""
+        return self.mgrs[2]
+
+    @property
     def easting_letter(self) -> str:
+        """The easting letter of the MGRS tile, within the UTM zone."""
         return self.mgrs[3]
 
     @property
     def northing_letter(self) -> str:
+        """The northing letter of the MGRS tile, within the UTM zone."""
         return self.mgrs[4]
+
+    def with_precision(self, precision: int) -> Self:
+        """Compute the MGRS at a lower precision.
+
+        Parameters
+        ----------
+        precision : int
+            Desired target precision.
+
+        Returns
+        -------
+        Self
+            The same MGRS tile at the target precision.
+        """
+        if precision > self.precision:
+            raise ValueError("Cannot increase precision")
+        return MGRS(self.mgrs[: 5 + 2 * precision])
 
     @classmethod
     def from_utm(
@@ -174,3 +239,11 @@ class MGRS:
             easting.contents.value,
             northing.contents.value,
         )
+
+    @classmethod
+    def is_valid(cls, mgrs: str) -> bool:
+        try:
+            cls(mgrs).to_utm()
+            return True
+        except core.MGRSError:
+            return False
