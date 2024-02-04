@@ -1,5 +1,8 @@
 .. _home:
 
+This is a fork of the mgrs_ library by Howard Butler, for my use case only.
+Please use and credit the original package.
+
 mgrs: Converting to and from MGRS and Decimal Degrees
 ------------------------------------------------------------------------------
 
@@ -11,11 +14,15 @@ This library has an internal copy of some of the files from GeoTrans_ 2.4.2.
 
 .. _`GeoTrans`: http://earth-info.nga.mil/GandG/geotrans/
 .. _`ctypes`: http://docs.python.org/library/ctypes.html
+.. _`mgrs`: https://github.com/hobuinc/mgrs
 
 
 
 ChangeLog
 ------------------------------------------------------------------------------
+2.0
+
+* API change ⚠️
 
 1.5.0
 
